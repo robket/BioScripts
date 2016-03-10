@@ -10,12 +10,16 @@ except ImportError:
   print("Python Image Library does not seem to be available. Try 'pip install image'\nError:")
   raise
 import argparse
+from PIL import Image
+from PIL import ImageFont
+from PIL import ImageDraw
 
 parser = argparse.ArgumentParser(description="Simple visualisation of sequence alignments.")
 parser.add_argument('input', type=argparse.FileType('r'), help="the location of the alignment (.TSV) file to visualise")
 parser.add_argument('output', type=str, help="the output file for the visualisation. File format of image is inferred from extension")
 parser.add_argument('-s', '--sort-by', type=str, choices=["mean", "start", "end", "length", "none"], default="mean", help="what parameter is used to sort the sequences")
 parser.add_argument('--do-not-crop', action='store_true', help="do not crop the image to the position of the leftmost alignment")
+parser.add_argument('--no-text', action='store_true', help="do display initial offset in the image")
 args = parser.parse_args()
 
 def get_start_and_end_points(input_file):
@@ -45,4 +49,10 @@ elif args.sort_by == "length":
 for i, (start, end) in enumerate(coords):
   np.put(data_matrix[i], range(start - minimum, end - minimum), 0)
 img = scipy.misc.toimage(data_matrix)
+if minimum > 0 and not args.no_text:
+  draw = ImageDraw.Draw(img)
+  font = ImageFont.truetype("OpenSans-Regular.ttf", int(dimensions[0] / 40))
+  text = "Offset: " + str(minimum)
+  print(text)
+  draw.text((int(dimensions[1] * 0.95 - font.getsize(text)[0]), int(dimensions[1] * 0.05)), text, font=font)
 img.save(args.output)
