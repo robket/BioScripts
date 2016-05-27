@@ -9,6 +9,9 @@ Contents
 * alignment2bitmap.py:
   Creates an image of the an alignment (.TSV) file
 
+* reco_sim.py:
+  Recombination simulator. Simulates the evolution and recombination of sequences. 
+
 Requirements
 ============
 
