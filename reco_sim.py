@@ -268,7 +268,16 @@ def test_recombination():
 s = Settings()
 #np.random.seed(0)
 
-# Diverse initial seedling strains
+# Initial random starting strain
+starting_strain = random_strain(s.NUMBER_OF_REGIONS, s.CONSERVED_REGION_SIZE, s.VARIABLE_REGION_SIZE, s.CONSERVED_MUTATE, s.VARIABLE_MUTATE, s.CONSERVED_INDEL, s.VARIABLE_INDEL, s.CONSERVED_RECO, s.VARIABLE_RECO, alphabet=list(Nucleotide.NUCLEOTIDES))
+starting_strain.fix_stop_codons()
+
+# Make 4 copies of starting strain
+starting_strain_copies = [starting_strain.generate_offspring() for i in range(4)]
+for i, strain in enumerate(starting_strain_copies) :
+    strain.id = str(i)
+
+# Evolve those four strains independantly
 s.KEEP_PARENTS = False
 s.PERCENTAGE_OFFSPRING_THAT_ARE_RECOMBINATIONS = 0
 s.MAX_POOL_SIZE = 4
@@ -276,11 +285,6 @@ s.NUMBER_OF_OFFSPRING_PER_GENERATION = 1
 s.ALLOW_STOP_CODON_MUTATION = True
 s.ACTIVELY_DELETE_SEQUENCES_WITH_STOPS = False
 s.NUMBER_OF_GENERATIONS = 8
-starting_strain = random_strain(s.NUMBER_OF_REGIONS, s.CONSERVED_REGION_SIZE, s.VARIABLE_REGION_SIZE, s.CONSERVED_MUTATE, s.VARIABLE_MUTATE, s.CONSERVED_INDEL, s.VARIABLE_INDEL, s.CONSERVED_RECO, s.VARIABLE_RECO, alphabet=list(Nucleotide.NUCLEOTIDES))
-starting_strain.fix_stop_codons()
-starting_strain_copies = [starting_strain.generate_offspring() for i in range(4)]
-for i, strain in enumerate(starting_strain_copies) :
-    strain.id = str(i)
 seeding_pool = simulation(starting_strain_copies)
 for i, strain in enumerate(seeding_pool):
     strain.id = str(i)
@@ -290,6 +294,7 @@ for i, strain in enumerate(seeding_pool):
 s = Settings()
 pool = simulation(seeding_pool)
 
+# Print output in fasta format
 for i, strain in enumerate(pool):
     print("> Strain %d_%s"%(i, strain.id))
     print("".join(strain.sequence))
