@@ -7,8 +7,8 @@ import numpy as np
 
 class Settings():
     def __init__(s):
-        s.INDEL_LENGTH_MEAN = 8
-        s.INDEL_LENGTH_STD = 4
+        s.INDEL_LENGTH_MEAN = 21
+        s.INDEL_LENGTH_STD = 6
         s.INDELS_MULTIPLES_OF_3 = True
         s.MINIMUM_REGION_LENGTH = 5
         s.ALLOW_INDEL_IN_IN = False
@@ -20,7 +20,7 @@ class Settings():
         s.ALLOW_STOP_CODON_MUTATION = False
         s.ACTIVELY_DELETE_SEQUENCES_WITH_STOPS = True
         s.SHUFFLE_OUTPUT = True
-        s.MAX_POOL_SIZE = 512
+        s.MAX_POOL_SIZE = 1024
         s.NUMBER_OF_REGIONS = 5
         s.CONSERVED_REGION_SIZE = 200
         s.VARIABLE_REGION_SIZE = 60
@@ -265,33 +265,42 @@ def test_recombination():
     mutated_strain = Strain.recombine(strain1, strain2)
     print_strain(mutated_strain)
 
-s = Settings()
-#np.random.seed(0)
+np.random.seed(0)
 
+s = Settings()
 # Initial random starting strain
+#s.CONSERVED_MUTATE = 0.0005
+#s.VARIABLE_MUTATE = 0.03
+#s.CONSERVED_INDEL = 0.0
+#s.VARIABLE_INDEL = 0.002
+
 starting_strain = random_strain(s.NUMBER_OF_REGIONS, s.CONSERVED_REGION_SIZE, s.VARIABLE_REGION_SIZE, s.CONSERVED_MUTATE, s.VARIABLE_MUTATE, s.CONSERVED_INDEL, s.VARIABLE_INDEL, s.CONSERVED_RECO, s.VARIABLE_RECO, alphabet=list(Nucleotide.NUCLEOTIDES))
 starting_strain.fix_stop_codons()
+starting_strain.id = str(0)
 
-# Make 4 copies of starting strain
-starting_strain_copies = [starting_strain.generate_offspring() for i in range(4)]
-for i, strain in enumerate(starting_strain_copies) :
-    strain.id = str(i)
-
-# Evolve those four strains independantly
 s.KEEP_PARENTS = False
 s.PERCENTAGE_OFFSPRING_THAT_ARE_RECOMBINATIONS = 0
-s.MAX_POOL_SIZE = 4
+s.MAX_POOL_SIZE = 1
 s.NUMBER_OF_OFFSPRING_PER_GENERATION = 1
 s.ALLOW_STOP_CODON_MUTATION = True
 s.ACTIVELY_DELETE_SEQUENCES_WITH_STOPS = False
 s.NUMBER_OF_GENERATIONS = 8
-seeding_pool = simulation(starting_strain_copies)
+seeding_pool = [starting_strain]
+
+for i in range(1, 4):
+    starting_strain = simulation([starting_strain])[0]
+    starting_strain.id = str(i)
+    starting_strain.fix_stop_codons()
+    seeding_pool.append(starting_strain)
+
+s = Settings()
 for i, strain in enumerate(seeding_pool):
-    strain.id = str(i)
-    strain.fix_stop_codons()
+    for i, region in enumerate(strain.regions):
+        region.mutation_rate = s.CONSERVED_MUTATE if i%2 == 0 else s.VARIABLE_MUTATE
+        region.indel_rate = s.CONSERVED_INDEL if i%2 == 0 else s.VARIABLE_INDEL
+        region.reco_rate = s.CONSERVED_RECO if i%2 == 0 else s.VARIABLE_RECO
 
 # Running the real simulation given the initial strains
-s = Settings()
 pool = simulation(seeding_pool)
 
 # Print output in fasta format
