@@ -195,13 +195,36 @@ def save_coverage_map(alignments, output):
   img.save(output)
 
 
+def save_alignments(coords, output_file, sort_key=sum, crop=True, no_text=False):
+  if crop:
+    minimum = min(coords, key=lambda x: x[0])[0]
+  else:
+    minimum = 0
+  maximum = max(coords, key=lambda x: x[1])[1]
+  dimensions = (len(coords), maximum - minimum)
+  data_matrix = np.full((dimensions[0], dimensions[1] + 1), 255, dtype=np.uint8)
+  if sort_key is not None:
+    coords.sort(key=sort_key)
+  for i, (start, end) in enumerate(coords):
+    # np.put(data_matrix[i], range(start - minimum, end - minimum), 0)
+    data_matrix[i, (start - minimum):(end - minimum)] = 0
+  img = scipy.misc.toimage(data_matrix)
+  if minimum > 0 and not no_text:
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.truetype("OpenSans-Regular.ttf", int(dimensions[0] / 40))
+    text = "Offset: " + str(minimum)
+    draw.text((int(dimensions[1] * 0.95 - font.getsize(text)[0]), int(dimensions[1] * 0.05)), text, font=font)
+  img.save(output_file)
+
+
 def run_from_command_line():
   parser = argparse.ArgumentParser(description="Simple visualisation of fasta/fastq sequences converting bases to color pixels.")
   parser.add_argument('input', type=argparse.FileType('r'), help="the location of the fasta/fastq file to visualise")
-  parser.add_argument('-i', '--insertion-dist-file', type=str, help="the output file for the insertion distribution visualisation. File format of image is inferred from extension")
-  parser.add_argument('-d', '--deletion-dist-file', type=str, help="the output file for the deletion distribution visualisation. File format of image is inferred from extension")
-  parser.add_argument('-m', '--mismatch-rates-file', type=str, help="the output file for the mismatch rate distribution visualisation. File format of image is inferred from extension")
+  parser.add_argument('-a', '--alignment-output-file', type=str, help="the output file for the alignment map. File format of image is inferred from extension")
   parser.add_argument('-c', '--coverage-output-file', type=str, help="the output file for the coverage visualisation. File format of image is inferred from extension")
+  parser.add_argument('-d', '--deletion-dist-file', type=str, help="the output file for the deletion distribution visualisation. File format of image is inferred from extension")
+  parser.add_argument('-i', '--insertion-dist-file', type=str, help="the output file for the insertion distribution visualisation. File format of image is inferred from extension")
+  parser.add_argument('-m', '--mismatch-rates-file', type=str, help="the output file for the mismatch rate distribution visualisation. File format of image is inferred from extension")
   parser.add_argument('-n', '--nucleotide-output-file', type=str, help="the output file for the nucleotide visualisation. File format of image is inferred from extension")
   parser.add_argument('-M', '--n-mismatched', type=int, help="print the n most mismatched sequences")
   parser.add_argument('--case-sensitive', action='store_true', help="do not ignore case of chars in input file")
@@ -226,6 +249,10 @@ def run_from_command_line():
   if args.n_mismatched:
     print("{} most mismatched sequences:".format(args.n_mismatched), file=sys.stderr)
     most_mismatched(alignments, args.n_mismatched)
+  if args.alignment_output_file:
+    print("Saving alignment map to " + args.alignment_output_file, file=sys.stderr)
+    coords = [(a.target_start, a.target_start + a.target_length) for a in alignments]
+    save_alignments(coords, args.alignment_output_file)
 
 if __name__ == "__main__":
   run_from_command_line()
