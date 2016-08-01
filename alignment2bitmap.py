@@ -10,10 +10,7 @@ except ImportError:
   print("Python Image Library does not seem to be available. Try 'pip install image'\nError:")
   raise
 import argparse
-from PIL import Image
-from PIL import ImageFont
-from PIL import ImageDraw
-
+import alignment
 
 def get_start_and_end_points(input_file):
   coords = []
@@ -21,28 +18,6 @@ def get_start_and_end_points(input_file):
     length, start, end = list(map(int, line.strip().split())) 
     coords.append((start, end))
   return coords
-
-
-def save_alignments(coords, output_file, sort_key=sum, crop=True, no_text=False):
-  if crop:
-    minimum = min(coords, key=lambda x: x[0])[0]
-  else:
-    minimum = 0
-  maximum = max(coords, key=lambda x: x[1])[1]
-  dimensions = (len(coords), maximum - minimum)
-  data_matrix = np.full((dimensions[0], dimensions[1] + 1), 255, dtype=np.uint8)
-  if sort_key is not None:
-    coords.sort(key=sort_key)
-  for i, (start, end) in enumerate(coords):
-    # np.put(data_matrix[i], range(start - minimum, end - minimum), 0)
-    data_matrix[i, (start - minimum):(end - minimum)] = 0
-  img = scipy.misc.toimage(data_matrix)
-  if minimum > 0 and not no_text:
-    draw = ImageDraw.Draw(img)
-    font = ImageFont.truetype("OpenSans-Regular.ttf", int(dimensions[0] / 40))
-    text = "Offset: " + str(minimum)
-    draw.text((int(dimensions[1] * 0.95 - font.getsize(text)[0]), int(dimensions[1] * 0.05)), text, font=font)
-  img.save(output_file)
 
 
 def run_from_command_line():
@@ -64,7 +39,7 @@ def run_from_command_line():
     sort_key = lambda x: (x[1], x[0])
   elif args.sort_by == "length":
     sort_key = lambda x: (x[1] - x[0], x[0])
-  save_alignments(coords, args.output, sort_key=sort_key, crop=not args.do_not_crop, no_text=args.no_text)
+  alignment.save_alignment_map(coords, args.output, sort_key=sort_key, crop=not args.do_not_crop, no_text=args.no_text)
 
 if __name__ == "__main__":
   run_from_command_line()
