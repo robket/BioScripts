@@ -49,7 +49,7 @@ def _alignment_iterator(alignment, ignore_case=True, include_gaps=False):
     query_index += 1
 
 
-def _count_mismatches(alignment, ignore_case=True):
+def count_mismatches(alignment, ignore_case=True):
   mismatch_count = 0
   for position in _alignment_iterator(alignment, ignore_case):
     if position.target_nucleotide != position.query_nucleotide:
@@ -58,7 +58,7 @@ def _count_mismatches(alignment, ignore_case=True):
 
 
 def save_mismatch_rates(alignments, output_file, ignore_case=True):
-  mismatch_rates = [_count_mismatches(a, ignore_case) / a.no_gap_length for a in alignments]
+  mismatch_rates = [count_mismatches(a, ignore_case) / a.no_gap_length for a in alignments]
 
   plt.cla()
   plt.hist(mismatch_rates, 50)
@@ -67,19 +67,6 @@ def save_mismatch_rates(alignments, output_file, ignore_case=True):
   plt.title('Mismatch Rates')
   plt.grid(True)
   plt.savefig(output_file)
-
-
-def print_most_mismatched(alignments, n, ignore_case=True):
-  mismatch_count = np.array([_count_mismatches(a, ignore_case) for a in alignments])
-  no_gap_length = np.array([a.no_gap_length for a in alignments])
-  mismatch_rates = mismatch_count / no_gap_length
-  indexes = sorted(np.argpartition(-mismatch_rates, n)[:n], key=mismatch_rates.__getitem__, reverse=True)
-  for i in indexes:
-    alignment = alignments[i]
-    print(">Target_start_{}_len_{}_mismatches_{}".format(alignment.target_start, alignment.target_length, mismatch_count[i]))
-    print(alignment.target_seq)
-    print(">Query_len_{}".format(alignment.query_length))
-    print(alignment.query_seq)
 
 
 def gap_distribution(sequence):
