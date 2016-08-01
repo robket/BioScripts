@@ -15,6 +15,7 @@ except ImportError:
 import argparse
 from collections import defaultdict, Counter
 from types import SimpleNamespace
+import sys
 
 
 # This color table is sourced from https://github.com/trident01/BioExt-1/blob/master/AlignmentImage.java
@@ -86,6 +87,20 @@ def save_mismatch_rates(alignments, output_file, ignore_case=True):
   plt.title(r'Mismatch Rates')
   plt.grid(True)
   plt.savefig(output_file)
+
+
+def most_mismatched(alignments, n, ignore_case=True):
+  mismatch_count = np.array([count_mismatches(a, ignore_case) for a in alignments])
+  no_gap_length = np.array([a.no_gap_length for a in alignments])
+  mismatch_rates = mismatch_count / no_gap_length
+  indexes = sorted(np.argpartition(-mismatch_rates, n)[:n], key=mismatch_rates.__getitem__, reverse=True)
+  for i in indexes:
+    alignment = alignments[i]
+    print(">Target_start_{}_len_{}_mismatches_{}".format(alignment.target_start, alignment.target_length, mismatch_count[i]))
+    print(alignment.target_seq)
+    print(">Query_len_{}".format(alignment.query_length))
+    print(alignment.query_seq)
+
 
 
 # Get gap distribution
@@ -188,25 +203,29 @@ def run_from_command_line():
   parser.add_argument('-m', '--mismatch-rates-file', type=str, help="the output file for the mismatch rate distribution visualisation. File format of image is inferred from extension")
   parser.add_argument('-c', '--coverage-output-file', type=str, help="the output file for the coverage visualisation. File format of image is inferred from extension")
   parser.add_argument('-n', '--nucleotide-output-file', type=str, help="the output file for the nucleotide visualisation. File format of image is inferred from extension")
+  parser.add_argument('-M', '--n-mismatched', type=int, help="print the n most mismatched sequences")
   parser.add_argument('--case-sensitive', action='store_true', help="do not ignore case of chars in input file")
   args = parser.parse_args()
 
   alignments = get_alignments(args.input)
   if args.insertion_dist_file:
-    print("Saving insertion distribution plot " + args.insertion_dist_file)
+    print("Saving insertion distribution plot " + args.insertion_dist_file, file=sys.stderr)
     save_insertion_or_gap_dist(alignments, args.insertion_dist_file)
   if args.deletion_dist_file:
-    print("Saving deletion distribution plot " + args.deletion_dist_file)
+    print("Saving deletion distribution plot " + args.deletion_dist_file, file=sys.stderr)
     save_insertion_or_gap_dist(alignments, args.deletion_dist_file, insertion_not_gap=False)
   if args.mismatch_rates_file:
-    print("Saving mismatch rates plot " + args.mismatch_rates_file)
+    print("Saving mismatch rates plot " + args.mismatch_rates_file, file=sys.stderr)
     save_mismatch_rates(alignments, args.mismatch_rates_file, ignore_case=(not args.case_sensitive))
   if args.coverage_output_file:
-    print("Saving coverage map to " + args.coverage_output_file)
+    print("Saving coverage map to " + args.coverage_output_file, file=sys.stderr)
     save_coverage_map(alignments, args.coverage_output_file)
   if args.nucleotide_output_file:
-    print("Saving nucleotide map to " + args.nucleotide_output_file)
+    print("Saving nucleotide map to " + args.nucleotide_output_file, file=sys.stderr)
     save_nucleotide_map(alignments, args.nucleotide_output_file, ignore_case=(not args.case_sensitive))
+  if args.n_mismatched:
+    print("{} most mismatched sequences:".format(args.n_mismatched), file=sys.stderr)
+    most_mismatched(alignments, args.n_mismatched)
 
 if __name__ == "__main__":
   run_from_command_line()
