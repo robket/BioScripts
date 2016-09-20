@@ -170,13 +170,36 @@ def save_alignment_map(coords, output_file, sort_key=sum, crop=True, no_text=Fal
   data_matrix = np.full((dimensions[0], dimensions[1] + 1), 255, dtype=np.uint8)
   if sort_key is not None:
     coords.sort(key=sort_key)
-  for i, (start, end) in enumerate(coords):
+
+  is_multiple_alignment = len(coords[0]) > 3 and type(coords[0][3]) == list
+
+  # Greyscale over the bounds (or black if not multiple alignment)
+  for i, coord in enumerate(coords):
+    start = coord[0]
+    end = coord[1]
     # np.put(data_matrix[i], range(start - minimum, end - minimum), 0)
-    data_matrix[i, (start - minimum):(end - minimum)] = 0
+    data_matrix[i, (start - minimum):(end - minimum)] = 196 if is_multiple_alignment else 0
+
+  # Black over the subalignments, if any
+  if is_multiple_alignment:
+    for i, coord in enumerate(coords):
+      for subalignment in coord[3]:
+        start = subalignment[0]
+        end = subalignment[1]
+        # np.put(data_matrix[i], range(start - minimum, end - minimum), 0)
+        data_matrix[i, (start - minimum):(end - minimum)] = 0
+
   img = toimage(data_matrix)
+
+  # Text in the bottom right corner
+  if not no_text:
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.truetype("OpenSans-Regular.ttf", int(dimensions[0] / 40))
+    text = "Max: " + str(maximum)
+    draw.text((int(dimensions[1] * 0.95 - font.getsize(text)[0]), int(dimensions[0] * 0.09 - font.getsize(text)[1])), text, fill="gray", font=font)
   if minimum > 0 and not no_text:
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype("OpenSans-Regular.ttf", int(dimensions[0] / 40))
     text = "Offset: " + str(minimum)
-    draw.text((int(dimensions[1] * 0.95 - font.getsize(text)[0]), int(dimensions[1] * 0.05)), text, font=font)
+    draw.text((int(dimensions[1] * 0.95 - font.getsize(text)[0]), int(dimensions[0] * 0.11)), text, fill="gray", font=font)
   img.save(output_file)

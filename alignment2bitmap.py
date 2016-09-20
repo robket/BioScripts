@@ -12,13 +12,28 @@ except ImportError:
 import argparse
 import alignment
 
-def get_start_and_end_points(input_file):
+def get_start_and_end_points_with_keys(input_file):
+  key_to_coords = {}
+  keys = []
+  for line_count, line in enumerate(input_file):
+    tokens = line.strip().split()
+    length, start, end = tokens[:3]
+    if len(tokens) > 3:
+      key = tokens[3]
+    else:
+      key = line_count
+    if key in key_to_coords.keys():
+      key_to_coords[key].append((int(start), int(end)))
+    else:
+      keys.append(key)
+      key_to_coords[key] = [(int(start), int(end))]
   coords = []
-  for line in input_file:
-    length, start, end = list(map(int, line.strip().split())) 
-    coords.append((start, end))
+  for key in keys:
+    coords_of_key = key_to_coords[key]
+    total_length = sum([a[1] - a[0] for a in coords_of_key])
+    start_points, end_points = zip(*coords_of_key)
+    coords.append((min(start_points), max(end_points), total_length, coords_of_key))
   return coords
-
 
 def run_from_command_line():
   parser = argparse.ArgumentParser(description="Simple visualisation of sequence alignments.")
@@ -29,16 +44,16 @@ def run_from_command_line():
   parser.add_argument('--no-text', action='store_true', help="do display initial offset in the image")
   args = parser.parse_args()
 
-  coords = get_start_and_end_points(args.input)
+  coords = get_start_and_end_points_with_keys(args.input)
   sort_key = None
   if args.sort_by == "mean":
-    sort_key = sum
+    sort_key = lambda x: x[0] + x[1]
   if args.sort_by == "start":
     sort_key = lambda x: x
   elif args.sort_by == "end":
     sort_key = lambda x: (x[1], x[0])
   elif args.sort_by == "length":
-    sort_key = lambda x: (x[1] - x[0], x[0])
+    sort_key = lambda x: (x[2], x[0])
   alignment.save_alignment_map(coords, args.output, sort_key=sort_key, crop=not args.do_not_crop, no_text=args.no_text)
 
 if __name__ == "__main__":
