@@ -160,7 +160,7 @@ def save_coverage_map(alignments, output):
   img.save(output)
 
 
-def save_alignment_map(coords, output_file, sort_key=sum, crop=True, no_text=False):
+def save_alignment_map(coords, output_file, sort_key=sum, crop=True, no_ruler=False):
   if crop:
     minimum = min(coords, key=lambda x: x[0])[0]
   else:
@@ -189,17 +189,25 @@ def save_alignment_map(coords, output_file, sort_key=sum, crop=True, no_text=Fal
         # np.put(data_matrix[i], range(start - minimum, end - minimum), 0)
         data_matrix[i, (start - minimum):(end - minimum)] = 0
 
-  img = toimage(data_matrix)
-
-  # Text in the bottom right corner
-  if not no_text:
-    draw = ImageDraw.Draw(img)
-    font = ImageFont.truetype("OpenSans-Regular.ttf", int(dimensions[0] / 40))
-    text = "Max: " + str(maximum)
-    draw.text((int(dimensions[1] * 0.95 - font.getsize(text)[0]), int(dimensions[0] * 0.09 - font.getsize(text)[1])), text, fill="gray", font=font)
-  if minimum > 0 and not no_text:
-    draw = ImageDraw.Draw(img)
-    font = ImageFont.truetype("OpenSans-Regular.ttf", int(dimensions[0] / 40))
-    text = "Offset: " + str(minimum)
-    draw.text((int(dimensions[1] * 0.95 - font.getsize(text)[0]), int(dimensions[0] * 0.11)), text, fill="gray", font=font)
+  img = to_image(data_matrix, not no_ruler, offset=minimum)
   img.save(output_file)
+
+def to_image(data_matrix, add_ruler=True, offset=0):
+  maximum = offset + data_matrix.shape[1]
+  if add_ruler:
+    shape = list(data_matrix.shape)
+    shape[0] = 12 # Number of rows
+    ruler_matrix = np.full(shape, 255, dtype=data_matrix.dtype)
+    # tens ticks
+    ruler_matrix[11, 10-(offset%10)::10] = 0
+    # 50s ticks
+    ruler_matrix[10, 50-(offset%50)::50] = 0
+    img = toimage(np.vstack([ruler_matrix, data_matrix]))
+    draw = ImageDraw.Draw(img)
+    # Hundreds words
+    for i in range((offset//100) + 1, maximum // 100 + 1):
+      centering = (6 * (int(np.log10(i)) + 3) - 1) // 2
+      draw.text((i * 100 - centering - offset, 0), str(i) + "00")
+  else:
+    img = toimage(data_matrix)
+  return img

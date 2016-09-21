@@ -41,7 +41,7 @@ def run_from_command_line():
   parser.add_argument('output', type=str, help="the output file for the visualisation. File format of image is inferred from extension")
   parser.add_argument('-s', '--sort-by', type=str, choices=["mean", "start", "end", "length", "none"], default="mean", help="what parameter is used to sort the sequences")
   parser.add_argument('--do-not-crop', action='store_true', help="do not crop the image to the position of the leftmost alignment")
-  parser.add_argument('--no-text', action='store_true', help="do display initial offset in the image")
+  parser.add_argument('--no-ruler', action='store_true', help="do not include ruler indicating base position")
   args = parser.parse_args()
 
   coords = get_start_and_end_points_with_keys(args.input)
@@ -54,7 +54,7 @@ def run_from_command_line():
     sort_key = lambda x: (x[1], x[0])
   elif args.sort_by == "length":
     sort_key = lambda x: (x[2], x[0])
-  alignment.save_alignment_map(coords, args.output, sort_key=sort_key, crop=not args.do_not_crop, no_text=args.no_text)
+  alignment.save_alignment_map(coords, args.output, sort_key=sort_key, crop=not args.do_not_crop, no_ruler=args.no_ruler)
 
 if __name__ == "__main__":
   run_from_command_line()
