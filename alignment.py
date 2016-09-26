@@ -3,21 +3,27 @@ from matplotlib import pyplot as plt
 from scipy.misc import toimage
 from collections import defaultdict, Counter
 from types import SimpleNamespace
-from PIL import ImageFont
 from PIL import ImageDraw
 
 
 # This color table is sourced from https://github.com/trident01/BioExt-1/blob/master/AlignmentImage.java
+LIGHT_GRAY = 196
 FIXED_COLOR_TABLE = defaultdict(lambda: [0, 0, 0], {
   "A": [255, 0, 0],
   "C": [255, 255, 0],
   "T": [0, 255, 0],
   "G": [190, 0, 95],
-  "-": [150, 150, 150]})
+  "-": [LIGHT_GRAY, LIGHT_GRAY, LIGHT_GRAY]})
+GRAY_GAPS_COLOR_TABLE = defaultdict(lambda: [0, 0, 0], {
+  "-": [LIGHT_GRAY, LIGHT_GRAY, LIGHT_GRAY]})
+BLACK_COLOR_TABLE = defaultdict(lambda: [0, 0, 0])
 
 
 class Alignment:
-  def __init__(self, query_start, query_seq, target_start, target_seq):
+  def __init__(self, query_start, query_seq, target_start, target_seq, sequence_name, target_label, expected_errors):
+    self.name = sequence_name
+    self.target_label = target_label
+    self.expected_errors = expected_errors
     self.query_start = int(query_start) - 1
     self.query_seq = query_seq
     query_gap_count = query_seq.count("-")
@@ -31,7 +37,7 @@ class Alignment:
       raise ValueError("Length of target sequence not equal to length of query sequence")
 
 
-def _alignment_iterator(alignment, ignore_case=True, include_gaps=False):
+def alignment_iterator(alignment, ignore_case=True, include_gaps=False):
   target_index = 0
   target_offset = 0
   query_index = 0
@@ -51,19 +57,34 @@ def _alignment_iterator(alignment, ignore_case=True, include_gaps=False):
 
 def count_mismatches(alignment, ignore_case=True):
   mismatch_count = 0
-  for position in _alignment_iterator(alignment, ignore_case):
+  for position in alignment_iterator(alignment, ignore_case):
     if position.target_nucleotide != position.query_nucleotide:
       mismatch_count += 1
   return mismatch_count
+
+def save_expected_error_rates(alignments, output_file):
+  expected_error_rates = [a.expected_errors / a.query_length for a in alignments]
+
+  plt.cla()
+  plt.hist(expected_error_rates, 50, log=True)
+  plt.ylim(ymin=0.9)
+  plt.xlabel('Expected Error Rate')
+  plt.ylabel('Number of sequences')
+  plt.tick_params(which='both', direction='out')
+  plt.title('Expected Error Rates')
+  plt.grid(True)
+  plt.savefig(output_file)
 
 
 def save_mismatch_rates(alignments, output_file, ignore_case=True):
   mismatch_rates = [count_mismatches(a, ignore_case) / a.no_gap_length for a in alignments]
 
   plt.cla()
-  plt.hist(mismatch_rates, 50)
+  plt.hist(mismatch_rates, 50, log=True)
+  plt.ylim(ymin=0.9)
   plt.xlabel('Rate of mismatches')
   plt.ylabel('Number of sequences')
+  plt.tick_params(which='both', direction='out')
   plt.title('Mismatch Rates')
   plt.grid(True)
   plt.savefig(output_file)
@@ -89,11 +110,16 @@ def save_insertion_or_deletion_dist(alignments, output_file, insertion_not_delet
     size_counter += gap_distribution(a.target_seq if insertion_not_deletion else a.query_seq)
 
   sizes, counts = zip(*size_counter.items())
+  number_of_bins = max(sizes)
+  number_of_bins = round(number_of_bins / np.ceil(number_of_bins/50))
   plt.cla()
-  n, bins, patches = plt.hist(sizes, 50, weights=counts)
+  n, bins, patches = plt.hist(sizes, number_of_bins, weights=counts, log=True)
+  plt.ylim(ymin=0.9)
+  plt.xlim(xmin=1)
   plt.xlabel('Size of insertion' if insertion_not_deletion else 'Size of deletion')
   plt.ylabel('Count')
-  plt.title('Insertion size distribution' if insertion_not_deletion else 'Gap size distribution')
+  plt.tick_params(which='both', direction='out')
+  plt.title('Insertion size distribution' if insertion_not_deletion else 'Deletion size distribution')
   plt.grid(True)
   plt.savefig(output_file)
 
@@ -103,7 +129,7 @@ def nucleotide_distribution(alignments, ignore_case=False, include_gaps=True):
   max_index = 0
   distribution = defaultdict(Counter)
   for a in alignments:
-    for position in _alignment_iterator(a, ignore_case, include_gaps):
+    for position in alignment_iterator(a, ignore_case, include_gaps):
       distribution[position.reference_index][position.query_nucleotide] += 1
     max_index = max(max_index, a.target_start + a.target_length)
   return [distribution[i] for i in range(max_index)]
@@ -128,7 +154,7 @@ def save_nucleotide_map(alignments, output, ignore_case=True, include_gaps=True)
       start = 0 if i == 0 else cum_sum[i - 1, x]
       end = cum_sum[i, x]
       data_matrix[start:end, x, 0:3] = FIXED_COLOR_TABLE[key]
-  img = toimage(data_matrix[::-1,])
+  img = to_image(data_matrix[::-1,], ruler_underneath=True)
   img.save(output)
 
 
@@ -137,7 +163,7 @@ def coverage_map(alignments, include_gaps=False):
   max_index = 0
   coverage = Counter()
   for a in alignments:
-    for position in _alignment_iterator(a, True, include_gaps):
+    for position in alignment_iterator(a, True, include_gaps):
       coverage[position.reference_index] += 1
     max_index = max(max_index, a.target_start + a.target_length)
   return [coverage[i] for i in range(max_index)]
@@ -152,11 +178,9 @@ def save_coverage_map(alignments, output):
   for x in range(width):
     y1 = coverage_without_gaps[x]
     y2 = coverage_with_gaps[x]
-    #data_matrix[height-y1:height, x, 0:3] = 0
-    #data_matrix[height-y2:height-y1, x, 0:3] = 127
     data_matrix[0:y1, x, 0:3] = 0
     data_matrix[y1:y2, x, 0:3] = 127
-  img = toimage(data_matrix[::-1,])
+  img = to_image(data_matrix[::-1], add_ruler=True, ruler_underneath=True)
   img.save(output)
 
 
@@ -178,7 +202,7 @@ def save_alignment_map(coords, output_file, sort_key=sum, crop=True, no_ruler=Fa
     start = coord[0]
     end = coord[1]
     # np.put(data_matrix[i], range(start - minimum, end - minimum), 0)
-    data_matrix[i, (start - minimum):(end - minimum)] = 196 if is_multiple_alignment else 0
+    data_matrix[i, (start - minimum):(end - minimum)] = LIGHT_GRAY if is_multiple_alignment else 0
 
   # Black over the subalignments, if any
   if is_multiple_alignment:
@@ -192,22 +216,25 @@ def save_alignment_map(coords, output_file, sort_key=sum, crop=True, no_ruler=Fa
   img = to_image(data_matrix, not no_ruler, offset=minimum)
   img.save(output_file)
 
-def to_image(data_matrix, add_ruler=True, offset=0):
+def to_image(data_matrix, add_ruler=True, ruler_underneath = False, offset=1):
   maximum = offset + data_matrix.shape[1]
   if add_ruler:
     shape = list(data_matrix.shape)
     shape[0] = 12 # Number of rows
     ruler_matrix = np.full(shape, 255, dtype=data_matrix.dtype)
     # tens ticks
-    ruler_matrix[11, 10-(offset%10)::10] = 0
+    ruler_matrix[0 if ruler_underneath else 11, 10-(offset%10)::10] = 0
     # 50s ticks
-    ruler_matrix[10, 50-(offset%50)::50] = 0
-    img = toimage(np.vstack([ruler_matrix, data_matrix]))
+    ruler_matrix[1 if ruler_underneath else 10, 50-(offset%50)::50] = 0
+    if ruler_underneath:
+      img = toimage(np.vstack([data_matrix, ruler_matrix]))
+    else:
+      img = toimage(np.vstack([ruler_matrix, data_matrix]))
     draw = ImageDraw.Draw(img)
     # Hundreds words
     for i in range((offset//100) + 1, maximum // 100 + 1):
       centering = (6 * (int(np.log10(i)) + 3) - 1) // 2
-      draw.text((i * 100 - centering - offset, 0), str(i) + "00")
+      draw.text((i * 100 - centering - offset, (data_matrix.shape[0] + 2) if ruler_underneath else 0), str(i) + "00", fill="black")
   else:
     img = toimage(data_matrix)
   return img
